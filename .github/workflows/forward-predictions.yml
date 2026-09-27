@@ -1,11 +1,16 @@
 name: Forward predictions
 
-# Rolls the live forward test on weekdays during earnings season and commits
-# each cut's predictions BEFORE the quarters they predict have been filed. The
-# commit timestamp is the experiment; see scripts/run_forward.py.
+# Rolls the live forward test every weekday and commits each cut's predictions
+# BEFORE the quarters they predict have been filed. The commit timestamp is the
+# experiment; see scripts/run_forward.py.
+#
+# Running year-round rather than only in earnings season costs little: off-season
+# days find no ticker whose last filed quarter has moved, so the append step adds
+# nothing and the commit step is a no-op. It also means an off-cycle filer is
+# picked up whenever it reports, instead of only in January/April/July/October.
 on:
   schedule:
-    # 02:23 UTC, Mon-Fri, in January / April / July / October.
+    # 02:23 UTC, Mon-Fri, every month.
     #
     # Minute is off the hour because :00 schedules are the most contended and
     # the ones GitHub delays or drops under load.
@@ -15,9 +20,9 @@ on:
     # the releases it is predicting, even allowing for GitHub's queueing.
     #
     # Day-of-month is '*' and only day-of-week is restricted. That matters:
-    # when BOTH are restricted cron ORs them, and this would fire on every day
-    # of those months. With DOM unrestricted it is Mon-Fri, as intended.
-    - cron: '23 2 * 1,4,7,10 1-5'
+    # when BOTH are restricted cron ORs them, which would fire every day of the
+    # month as well. With DOM unrestricted it is Mon-Fri, as intended.
+    - cron: '23 2 * * 1-5'
   workflow_dispatch:
 
 # Shared with keepalive.yml so the two can never hold the repository at once.
