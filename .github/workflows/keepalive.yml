@@ -1,0 +1,23 @@
+name: Keepalive
+
+# GitHub disables a repository's scheduled workflows after 60 days with no
+# repository activity. This job re-enables them daily via the Actions API so
+# that never happens.
+on:
+  schedule:
+    # 05:17 UTC daily. Deliberately off the hour: schedules at :00 (and at
+    # 00:00 UTC especially) are the most contended and are the ones GitHub
+    # delays or drops under load.
+    - cron: '17 5 * * *'
+  workflow_dispatch:
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    # The action calls PUT /repos/{owner}/{repo}/actions/workflows/{id}/enable.
+    # That endpoint needs actions:write; it does not touch repository contents.
+    permissions:
+      actions: write
+    steps:
+      - name: Keep scheduled workflows enabled
+        uses: WaterLemons2k/scheduled-workflow-activity-action@v1
