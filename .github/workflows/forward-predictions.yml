@@ -1,0 +1,83 @@
+name: Forward predictions
+
+# Rolls the live forward test on weekdays during earnings season and commits
+# each cut's predictions BEFORE the quarters they predict have been filed. The
+# commit timestamp is the experiment; see scripts/run_forward.py.
+on:
+  schedule:
+    # 02:23 UTC, Mon-Fri, in January / April / July / October.
+    #
+    # Minute is off the hour because :00 schedules are the most contended and
+    # the ones GitHub delays or drops under load.
+    #
+    # Hour is early on purpose: US pre-market earnings start landing around
+    # 10:00 UTC, so a run that finishes by ~03:00 UTC is comfortably ahead of
+    # the releases it is predicting, even allowing for GitHub's queueing.
+    #
+    # Day-of-month is '*' and only day-of-week is restricted. That matters:
+    # when BOTH are restricted cron ORs them, and this would fire on every day
+    # of those months. With DOM unrestricted it is Mon-Fri, as intended.
+    - cron: '23 2 * 1,4,7,10 1-5'
+  workflow_dispatch:
+
+# Shared with keepalive.yml so the two can never hold the repository at once.
+# cancel-in-progress is false: a keepalive must never kill a half-finished
+# prediction run, and a queued prediction run must never be dropped.
+concurrency:
+  group: the-january-thing-2-repo-writes
+  cancel-in-progress: false
+
+jobs:
+  predict:
+    runs-on: ubuntu-latest
+    # ~500 tickers at SEC_SLEEP_SECONDS=0.5 is 4+ minutes of throttle alone,
+    # before requests, the refit and the feature build.
+    timeout-minutes: 90
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Predict
+        id: predict
+        run: |
+          set -euo pipefail
+          # run_forward.py defaults the cut to today and writes
+          # data/live_predictions_<cut>.csv. It refuses to overwrite an
+          # existing cut file, so a same-day re-run fails loudly rather than
+          # re-rolling a prediction.
+          python scripts/run_forward.py
+          echo "cut_file=data/live_predictions_$(date -u +%F).csv" >> "$GITHUB_OUTPUT"
+
+      - name: Append to the prediction ledger
+        run: python scripts/append_predictions.py "${{ steps.predict.outputs.cut_file }}"
+
+      - name: Commit
+        run: |
+          set -euo pipefail
+          git config user.name  'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          git add data/live_predictions.csv "${{ steps.predict.outputs.cut_file }}"
+          if git diff --cached --quiet; then
+            echo 'No new predictions to commit.'
+            exit 0
+          fi
+
+          git commit -m "Forward predictions, cut $(date -u +%F)" \
+                     -m 'Committed before the predicted quarters were filed.'
+
+          # Rebase rather than force: nothing here may rewrite a published
+          # prediction. If the rebase conflicts, the run fails and a human
+          # looks at it.
+          git pull --rebase origin "${GITHUB_REF_NAME}"
+          git push origin "HEAD:${GITHUB_REF_NAME}"

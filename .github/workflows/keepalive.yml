@@ -11,6 +11,13 @@ on:
     - cron: '17 5 * * *'
   workflow_dispatch:
 
+# Shared with forward-predictions.yml so the two can never hold the repository
+# at once. cancel-in-progress is false: this job must never cancel a
+# prediction run that is mid-flight.
+concurrency:
+  group: the-january-thing-2-repo-writes
+  cancel-in-progress: false
+
 jobs:
   keepalive:
     runs-on: ubuntu-latest
