@@ -12,6 +12,11 @@
   ],
   "predictions": [
     {
+      "file": "live_predictions_2026-10-30.csv",
+      "cut_date": "2026-10-30",
+      "n_predictions": 472
+    },
+    {
       "file": "live_predictions_2026-09-04.csv",
       "cut_date": "2026-09-04",
       "n_predictions": 474
