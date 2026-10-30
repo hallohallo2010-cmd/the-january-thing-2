@@ -253,3 +253,8 @@ data/*
 # ...and the scored results that pair with them, for the same reason: data/*
 # and *.csv would otherwise swallow both halves of the forward test.
 !data/scored_*.csv
+
+# ...and the cumulative ledger append_predictions.py folds those cut files into.
+# Without this line `git add data/live_predictions.csv` in forward-predictions.yml
+# fails on an ignored path, and every scheduled run dies at the Commit step.
+!data/live_predictions.csv
